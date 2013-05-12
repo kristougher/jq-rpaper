@@ -1,0 +1,29 @@
+<html>
+<head>
+<title>jQuery raphaelPaper</title>
+ <style type="text/css" media="all">
+@import url("jquery_draw.css");
+</style>
+<script src="js/jquery-1.9.1.min.js"></script>
+<script src="js/raphael-min.js"></script>
+<script src="js/jquery_draw.js"></script>
+<script>
+$(document).ready(function(){
+  $("#draw-canvas").raphaelPaper({
+    image_palette: {
+      himmel: {
+        src: "http://arrild.com/jqdraw/himlenovervanloese.jpg",
+        width: 120,
+        height: 100
+      }
+    }
+  });
+});
+</script>
+</head>
+<body>
+
+<textarea id="draw-canvas"></textarea>
+</body>
+</html>
+

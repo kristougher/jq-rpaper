@@ -1,0 +1,49 @@
+#draw-diagram {
+  display: inline-block;
+}
+#draw-diagram + div {
+  display: inline-block;
+}
+#draw-tools-palette {
+  background: #dedede;
+  padding: .5em;
+  border: 3px solid #999;
+  border-radius: .5em;
+  margin: 1em;
+}
+#draw-tools-palette > div {
+    
+}
+.draw-tool-section {
+  float: left;
+  clear: both;
+  padding: .3em 0;
+
+}
+.draw-tool-section:last-child {
+  float: none;
+  clear: both;
+}
+.draw-tool-icon {
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center; 
+  width: 24px;
+  height: 24px;
+  float: left;
+  overflow: hidden;
+  text-indent: -100em;
+  margin: .2em;
+  border-radius: .2em;
+  box-shadow: 1px 1px 3px #333;
+}
+.draw-tool-icon.none {
+  text-indent: 0;
+  border: 2px dashed #fff;
+}
+.draw-tool-icon:last-child {
+  clear: right;
+}
+.draw-input-wrapper {
+  display: none;
+}
