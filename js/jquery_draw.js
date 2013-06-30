@@ -438,14 +438,25 @@
     tempCurve[3].drag(editor.pointMoveCurve,editor.pointStart,editor.pointUp);
   },
   drawObject: function (type, key, attr, callback) {
-    if (type == "freehand" || type == "vector") {
+    if (type == "freehand" || type == "vector" || type == "path") {
       type = "path";
+      if (editor.isset(attr.d)) {
+        attr.path = attr.d;
+      }
+    }
+    // TODO: Awful conversion of dasharray.
+    if (editor.isset(attr["stroke-dasharray"]) && (attr["stroke-dasharray"].indexOf(","))) {
+      if (attr["stroke-dasharray"] == "6,2") {
+        attr["stroke-dasharray"] = "-";
+      }
+      else {
+        attr["stroke-dasharray"] = "--";
+      }
     }
     attr.type = type;
     if (typeof nosave == 'undefined') {
       objectsArray[key] = paper.add([attr]);
       objectsArray[key].attr({title: key});
-
       objectsArray[key].click(function() {
         editor.activate_object(this.attr("title")) 
       });
@@ -454,16 +465,17 @@
     else {
       paper.add([attr]);
     }
-    callback(key);
+    if (typeof callback != 'undefined') {
+      callback(key);
+    }
   },
   drawFromJSON: function (key, jsonstr, nosave){
     var info = key.split("_");
 
-    var objTemp = jsonstr, temp;
-    temp = editor.drawObject(info[0], info[1], objTemp, nosave);
+    var objTemp = jsonstr;
+    editor.drawObject(info[0], key, objTemp, nosave);
 
     if (typeof nosave == 'undefined') { 
-      elements[key] = temp;
       i++;
     }
   },
@@ -826,7 +838,7 @@
 
     var saved_drawing;
     if (this.val().length > 2) {
-      saved_drawing = JSON.parse($(".draw-diagram-input").val());
+      saved_drawing = JSON.parse(this.val());
       if (typeof saved_drawing.background != "undefined") {
         editor.setBackground(background_list, saved_drawing.background, true);
         $(".draw-background-select").find("[value='" + saved_drawing.background + "']").attr("selected", "selected");

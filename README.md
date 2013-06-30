@@ -8,9 +8,10 @@ Lightweight SVG/WML-editor.
 As the name implies, it relies heavily on jQuery and RaphaelJS, so these needs to be included as well.
 Can be downloaded from http://raphaeljs.com and http://jquery.com
 
-Turns a textarea into a drawing pad. The main goal is to make it possible to have generic looking user-supplied drawings.
+Turns a textarea into a drawing pad. The purpose is to make it possible to have generic 
+looking user-supplied drawings.
 
-You simply call $(YOUR_TEXTAREA).raphaelPaper(options); to create the drawing board.
+You simply call $(YOUR_TEXTAREA).raphaelPaper(options); to create the drawing board. If the textarea contains data, it will be added to the drawing board.
 
 The drawing will be saved as a stringified JSON object in the textarea.
 
