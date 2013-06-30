@@ -638,6 +638,29 @@
             bbox.set.hide();
           }
         }
+      },
+      general : {
+        save: {
+          action: function() {
+            editor.saveLocal();
+          },
+          icon_url: image_path + "/disk.png"
+        }
+        /*
+        undo: {
+          action: function () {
+            if (undo.newObject) {
+              objectsArray[undo.id].remove();
+              delete objectsArray[undo.id];
+            }
+            else {
+              objectsArray[undo.id].attr(undo.attr.attr());
+            }
+            console.log(undo);
+          },
+          icon_url: image_path + "/arrow_undo.png"
+        }
+        */
       }
     /*
     palette['undo'] = paper.image(image_path + "/undo.png", 450, 230, 30, 27);
@@ -647,14 +670,14 @@
     // Setting up the required markup around the widget.
     this.wrap('<div class="draw-widget-diagram"></div>');
     this.wrap('<div class="draw-input-wrapper"></div>');
-    this.closest(".draw-widget-diagram").append('<div class="draw-view-source">View source</div>');
+    this.closest(".draw-widget-diagram").prepend('<div class="draw-view-source">View source</div>');
     this.closest(".draw-widget-diagram").prepend('<div id="draw-tools-palette"></div>');
     $("#draw-tools-palette").prepend('<div id="draw-image-palette"></div>');
     this.closest(".draw-widget-diagram").prepend('<div id="draw-diagram"></div>');
 
     // Toggle source view.
     $(".draw-view-source").click(function(){
-      $(this).closest(".field-widget-diagram").find(".draw-input-wrapper").toggle();
+      $(this).siblings(".draw-input-wrapper").toggle();
     });
     
     // Where it all happens. Initiating the paper.
@@ -695,6 +718,14 @@
           return false;
         }
         item.action(editor.currentObjectID);
+      });
+    });
+    // Tools on existing objects.
+    $("#draw-tools-palette").append('<div class="draw-tool-section draw-tools-general" data-attr="type"></div>');
+    $.each(settings.general, function(index, item) {
+      $(".draw-tools-general").append('<div class="draw-tool-icon ' + index + '" style="background-image: url(' + item.icon_url + ');">' + index + '</div>');
+      $(".draw-tools-general ." + index).click(function(){
+        item.action();
       });
     });
 
