@@ -8,7 +8,7 @@
   elements = {},
   objectsArray = {},
   background_list = {};
-  var paper;
+  var paper, contents = {}, undo = {};
   var temp;
   var bg;
   var editor = {
@@ -21,7 +21,7 @@
     bg = backgrounds[bg_id];
     if (typeof nosave != "undefined" && !nosave) {
       elements['background'] = bg_id;
-      editor.saveLocal(elements, 'background');
+      editor.saveLocal();
     }
   },
   // Attributes for dragging instances
@@ -47,15 +47,6 @@
     this.oop = this.attr("opacity");
   },
   move: function (dx, dy) {
-      // move will be called with dx and dy
-    if (this.type == "circle") {
-    //  this.attr({cx: (Math.round(this.ox) + dx), cy: (Math.round(this.oy) + dy)});
-    }
-    else {
-     // this.attr({x: (Math.round(this.ox) + dx), y: (Math.round(this.oy) + dy)});
-     // this.transform("t" + dx + "," + dy);
-    }
-
     bbox.set.transform(bbox.transform_storage + "T" + (dx) + "," + (dy));
     bbox.move = {x: dx, y: dy};
   },
@@ -66,7 +57,7 @@
       objectsArray[editor.currentObjectID].attr({opacity: this.oop});
 
       elements[editor.currentObjectID] = objectsArray[editor.currentObjectID].attr();
-      editor.saveLocal(elements, editor.currentObjectID);
+      editor.saveLocal();
   },
   up: function () {
       if (editor.isset(bbox.move.x)) {
@@ -75,7 +66,7 @@
       bbox.move = {};
       this.attr({opacity: this.oop});
       elements[this.attr("title")] = this.attr();
-      editor.saveLocal(elements, this.attr("title"));
+      editor.saveLocal();
   },
   // Make a line active
   activate_line: function() {
@@ -102,7 +93,7 @@
       objectsArray[objKey].attr({opacity: 1}).undrag();
     }
     if (editor.isset(bbox.set)) {
-      bbox.set.pop();
+      bbox.set.exclude(objectsArray[objKey]);
       bbox.set.hide();
       bbox.set.transform("");
     }
@@ -111,10 +102,14 @@
   // Make an object active
   activate_object: function(objTitle) {
     editor.deactivate_object(editor.currentObjectID);
+    undo = {
+      id: objTitle,
+      newObject: false,
+      attr: objectsArray[objTitle].attr()
+    }
     editor.currentObjectID = objTitle;
 
     if (objTitle.indexOf("vector") === -1){
-    //  objectsArray[objTitle].op = objectsArray[objTitle].attr("opacity");
       objectsArray[objTitle].undrag();
       // If the bounding box object is not yet set, create it.
       if (!editor.isset(bbox.rect)) {
@@ -131,28 +126,31 @@
   bbox_create: function() {
     paper.setStart();
     bbox.rect = paper.rect(0,0,1,1).attr({opacity: .3,"stroke-dasharray": "-", opacity: 0.1});
-    bbox.rotate = paper.circle(0,0,5).attr({fill: "#efefef"});
+    bbox.rotate = paper.circle(0,0,10).attr({fill: "#efefef"});
     bbox.resize = paper.rect(-15, -15, 15, 15).attr({fill: "#efefef"});
     bbox.set = paper.setFinish();
     bbox.set.hide();
-  //  bbox.rect.drag(editor.move, editor.start, editor.up);
     bbox.resize.drag(editor.bbox_resize_move, editor.bbox_resize_start, editor.bbox_resize_end);
-
     bbox.rotate.drag(editor.bbox_rotate_move, editor.bbox_rotate_start, editor.bbox_rotate_end);
   },
   bbox_hide: function() {
+ /*   bbox.set.hide();
+    
     bbox.rect.hide();
     bbox.rotate.hide();
     bbox.resize.hide();
+*/
   },
   bbox_show: function() {
+    bbox.set.show();
+    /*
     bbox.rect.show();
     bbox.rotate.show();
     bbox.resize.show();
+    */
   },
   // When an object is selected, adjust the settings of the bounding box.
   bbox_enable: function($object) {
-
     bbox.coords = $object.getBBox();
     bbox.set.attr({x: bbox.coords.x, y: bbox.coords.y}).toFront(); //, transform: $object.transform()});
     bbox.set.push($object);
@@ -192,7 +190,7 @@
     objectsArray[editor.currentObjectID].transform(bbox.transform_storage + "s" + bbox.move.scale);
     
     elements[editor.currentObjectID] = objectsArray[editor.currentObjectID][0].attr();
-    editor.saveLocal(elements, editor.currentObjectID);
+    editor.saveLocal();
     editor.activate_object(editor.currentObjectID);
   },
   bbox_rotate_start: function() {
@@ -226,7 +224,7 @@
     objectsArray[editor.currentObjectID].transform(bbox.transform_storage + "r" + bbox.move.rotate);
     
     elements[editor.currentObjectID] = objectsArray[editor.currentObjectID][0].attr();
-    editor.saveLocal(elements, editor.currentObjectID);
+    editor.saveLocal();
     editor.activate_object(editor.currentObjectID);
   },
   point_add: function(path_object, x, y) {
@@ -250,16 +248,7 @@
 
         tempObject.remove();
         tempObject = {};
-        /*
-        tempObject.key = "text_" + i;
 
-        objectsArray[tempObject.key] = tempObject;
-        objectsArray[tempObject.key].attr({title: tempObject.key})
-        objectsArray[tempObject.key].click(function(){ editor.activate_object(this.attr("title")) });
-        elements["text_" + i] = tempObject.attr();
-        i++;
-        editor.saveLocal(elements);
-        */
         $("#draw-text-input").remove();
         bg.unclick().attr({cursor: "auto"});
       } 
@@ -280,7 +269,6 @@
     bg.undrag().attr({cursor: "default"});
     elements["circle_" + i] = tempObject.attr();
     i++;
-    editor.saveLocal(elements);
   },
   freehand_start: function(x, y) {
     tempObject = paper.path().attr(current_attributes);
@@ -343,7 +331,6 @@
       }
 
       elements[tempCurve[0]] = attr;
-      editor.saveLocal(elements);
   },
   rectangle_start: function(x, y) {
     var canvas_offset = $("#draw-diagram").offset();
@@ -401,13 +388,13 @@
   vector_end: function(event) {
     bg.undrag();
     
-    var key = i;
+    var key = 'vector_' + i;
     i++;
     var attr = tempObject.attr();
     var no_var;
 
-    editor.drawObject('vector', key, attr, no_var, function() {
-      editor.activate_object(key);
+    editor.drawObject('vector', key, attr, no_var, function(objKey) {
+      editor.activate_object(objKey);
     });
 
     tempObject.remove();
@@ -451,10 +438,6 @@
     tempCurve[3].drag(editor.pointMoveCurve,editor.pointStart,editor.pointUp);
   },
   drawObject: function (type, key, attr, callback) {
-    key = type + "_" + key;
-    if (type == "coach" || type == "player") {
-      type = "image";
-    }
     if (type == "freehand" || type == "vector") {
       type = "path";
     }
@@ -462,7 +445,10 @@
     if (typeof nosave == 'undefined') {
       objectsArray[key] = paper.add([attr]);
       objectsArray[key].attr({title: key});
-      objectsArray[key].click(function() { editor.activate_object(this.attr("title")) });
+
+      objectsArray[key].click(function() {
+        editor.activate_object(this.attr("title")) 
+      });
       return attr;
     }
     else {
@@ -478,7 +464,6 @@
 
     if (typeof nosave == 'undefined') { 
       elements[key] = temp;
-   //   editor.saveLocal(elements);
       i++;
     }
   },
@@ -488,16 +473,21 @@
     i++;
     var attr = element.attrs;
     var no_var;
-    editor.drawObject(element.type, key, attr, no_var, function() {
-      editor.activate_object(key);
+    undo = {
+      id: key,
+      newObject: true 
+    }
+    editor.drawObject(element.type, key, attr, function(objkey) {
+      editor.activate_object(objkey);
     });
     // This slightly 
     element.remove();
     element = {};
 //    bg.hide();
   },
-  saveLocal: function (objects_array){
+  saveLocal: function (callback){
     // Undo option
+    /*
     if(typeof localStorage !=="undefined") {
       var lastIndex = false;
       for (lastIndex in objects_array);
@@ -507,7 +497,20 @@
       localStorage.undo = JSON.stringify(attr);
 
     }
-    $(".draw-input-wrapper textarea").val(JSON.stringify(objects_array));
+    */
+    contents = {};
+    $("#draw-diagram svg a").each(function(){
+      var tempAttr = {};
+      $.each($(this).children()[0].attributes, function(index, attr) {
+        tempAttr[attr.nodeName] = attr.value;
+      });
+      tempAttr.type = $(this).children()[0].tagName;
+      contents[$(this).attr("title")] = tempAttr;
+    });
+    if (editor.isset(callback)) {
+      callback(contents);
+    }
+    $(".draw-input-wrapper textarea").val(JSON.stringify(contents)); //objects_array));
   },
   isset: function (variable) {
       return (typeof variable != "undefined");
@@ -588,11 +591,38 @@
             bg.drag(editor.rectangle_draw, editor.rectangle_start, editor.freehand_end).attr({cursor: "crosshair"});
           }
         },
+      },
+      // Functions to apply only on existing selected objects.
+      onActiveObject: {
+        toFront: {
+          icon_url: image_path + "/shape_move_front.png",
+          action: function(objTitle) {
+            if ($("body").data("active").indexOf("vector") > -1) {
+              objectsArray[objTitle][0].toFront();
+            }
+            else  {
+              objectsArray[objTitle].toFront();
+            }
+          }
+        },
+        // Send object to the back of the stack.
+        toBack: {
+          icon_url: image_path + "/shape_move_back.png",
+          action: function(objTitle) {
+            if ($("body").data("active").indexOf("vector") > -1) {
+              objectsArray[objTitle][0].toBack();
+            }
+            else  {
+              objectsArray[objTitle].toBack();
+            }
+            bg.toBack();
+          }
+        },
         trash: {
           icon_url: image_path + "/trash.png",
-          action: function(){
+          action: function(objTitle){
             // Lines are actually 3 objects. They all need to be removed.
-            if($("body").data("active").indexOf("Line") > -1) {
+            if($("body").data("active").indexOf("vector") > -1) {
               for (var j in objectsArray[$("body").data("active")]) {
                 objectsArray[$("body").data("active")][j].remove();
               }
@@ -604,7 +634,6 @@
             // Delete the data of the object.
             delete objectsArray[editor.currentObjectID];
             delete elements[editor.currentObjectID];
-            editor.saveLocal(elements);
             editor.currentObjectID = "";
             bbox.set.hide();
           }
@@ -650,14 +679,22 @@
     $.each(settings.tools, function(index, item) {
       $(".draw-tools").append('<div class="draw-tool-icon ' + index + '" style="background-image: url(' + item.icon_url + ');">' + index + '</div>');
       $(".draw-tools ." + index).click(function(){
-        /* = paper.rect(0,0,settings.width, settings.height);
-        bg.attr({opacity: 1, fill: "#FFEEEE"});
-        /**/
         item.action();
-
         $(this).parent().find(".draw-tool-icon").css("opacity", "0.5");
         $(this).css("opacity", 1);
         clear_element_events(bg);
+      });
+    });
+
+    // Tools on existing objects.
+    $("#draw-tools-palette").append('<div class="draw-tool-section draw-tools-existing" data-attr="type"></div>');
+    $.each(settings.onActiveObject, function(index, item) {
+      $(".draw-tools-existing").append('<div class="draw-tool-icon ' + index + '" style="background-image: url(' + item.icon_url + ');">' + index + '</div>');
+      $(".draw-tools-existing ." + index).click(function(){
+        if (("undefined" == typeof editor.currentObjectID) || (editor.currentObjectID == "") || !editor.currentObjectID) {
+          return false;
+        }
+        item.action(editor.currentObjectID);
       });
     });
 
@@ -693,12 +730,12 @@
     // Generic behavior for all attribute tool buttons.
     $("#draw-tools-palette .draw-tool-icon").bind("click", function(){
       current_attributes[$(this).parent().data("attr")] = $(this).text();
-
+      $(this).siblings().css('opacity', 0.5);
+      $(this).css('opacity', 1);
       // If there is an active object, assign the attribute to it.
       if (editor.currentObjectID.length > 0) {
         objectsArray[editor.currentObjectID].attr($(this).parent().data("attr"), $(this).text());
         elements[editor.currentObjectID] = objectsArray[editor.currentObjectID][0].attr();
-        editor.saveLocal(elements);
       }
     });
     /*************************************************
@@ -740,7 +777,11 @@
       paper.rect(0,0, settings.canvas_width, settings.canvas_height).attr({"fill": "#FFF", stroke: "#666"});
       bg = paper.setFinish();
     }
-
+    bg.click(function(){
+      if (editor.currentObjectID.length > 0) {
+        editor.deactivate_object(editor.currentObjectID);
+      }
+    });
     
     function clear_element_events(element) {
       if (typeof element.events == "undefined") {
