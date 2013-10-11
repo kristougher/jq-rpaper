@@ -80,25 +80,6 @@
     }
     editor.currentObjectID = this.attr("title");
   },
-  deactivate_object: function(objKey) {
-    if (objKey.length > 0 && objKey.indexOf("vector") > -1) {
-      delete tempCurve[0];
-      for(var j in tempCurve) {
-        tempCurve[j].remove();
-        delete tempCurve[j];
-      }
-      tempCurve = {};
-    }
-    else if (typeof objectsArray[objKey] != "undefined") {
-      objectsArray[objKey].attr({opacity: 1}).undrag();
-    }
-    if (editor.isset(bbox.set)) {
-      bbox.set.exclude(objectsArray[objKey]);
-      bbox.set.hide();
-      bbox.set.transform("");
-    }
-    editor.currentObjectID = "";
-  },
   // Make an object active
   activate_object: function(objTitle) {
     editor.deactivate_object(editor.currentObjectID);
@@ -123,11 +104,16 @@
       editor.vectorPoints(objTitle);
     }
   },
+  addImage: function(attr) {
+    attr.type = "image";
+    tempObject = paper.image(attr.src, attr.x, attr.y, attr.width, attr.height);
+    editor.finishElement(tempObject);
+  },
   bbox_create: function() {
     paper.setStart();
-    bbox.rect = paper.rect(0,0,1,1).attr({opacity: .3,"stroke-dasharray": "-", opacity: 0.1});
-    bbox.rotate = paper.circle(0,0,10).attr({fill: "#efefef"});
-    bbox.resize = paper.rect(-15, -15, 15, 15).attr({fill: "#efefef"});
+    bbox.rect = paper.rect(0,0,1,1).attr({opacity: .3,"stroke-dasharray": "-", opacity: 0.1, title: "bbox"});
+    bbox.rotate = paper.circle(0,0,10).attr({fill: "#efefef", title: "bbox"});
+    bbox.resize = paper.rect(-15, -15, 15, 15).attr({fill: "#efefef", title: "bbox"});
     bbox.set = paper.setFinish();
     bbox.set.hide();
     bbox.resize.drag(editor.bbox_resize_move, editor.bbox_resize_start, editor.bbox_resize_end);
@@ -188,7 +174,6 @@
    */
   bbox_resize_end: function() {
     objectsArray[editor.currentObjectID].transform(bbox.transform_storage + "s" + bbox.move.scale);
-    
     elements[editor.currentObjectID] = objectsArray[editor.currentObjectID][0].attr();
     editor.saveLocal();
     editor.activate_object(editor.currentObjectID);
@@ -227,16 +212,30 @@
     editor.saveLocal();
     editor.activate_object(editor.currentObjectID);
   },
+  deactivate_object: function(objKey) {
+    if (objKey.length > 0 && objKey.indexOf("vector") > -1) {
+      delete tempCurve[0];
+      for(var j in tempCurve) {
+        tempCurve[j].remove();
+        delete tempCurve[j];
+      }
+      tempCurve = {};
+    }
+    else if (typeof objectsArray[objKey] != "undefined") {
+      objectsArray[objKey].attr({opacity: 1}).undrag();
+    }
+    if (editor.isset(bbox.set)) {
+      bbox.set.exclude(objectsArray[objKey]);
+      bbox.set.hide();
+      bbox.set.transform("");
+    }
+    editor.currentObjectID = "";
+  },
   point_add: function(path_object, x, y) {
     var new_path = path_object.attr("path") + " " + x + " " + y;
     path_object.attr({path: new_path});
 
     return path_object;
-  },
-  addImage: function(attr) {
-    attr.type = "image";
-    tempObject = paper.image(attr.src, attr.x, attr.y, attr.width, attr.height);
-    editor.finishElement(tempObject);
   },
   text_start: function(e) {
     $("body").append('<div id="draw-text-input"><input type="text" /></div>');
@@ -437,7 +436,8 @@
     tempCurve[3].attr({"title": key, "fill": "#FFF"});
     tempCurve[3].drag(editor.pointMoveCurve,editor.pointStart,editor.pointUp);
   },
-  drawObject: function (type, key, attr, callback) {
+  drawObject: function (type, key, attr, fromJSON) {
+    // Path are split in different namin conventions
     if (type == "freehand" || type == "vector" || type == "path") {
       type = "path";
       if (editor.isset(attr.d)) {
@@ -454,26 +454,39 @@
       }
     }
     attr.type = type;
-    if (typeof nosave == 'undefined') {
-      objectsArray[key] = paper.add([attr]);
-      objectsArray[key].attr({title: key});
-      objectsArray[key].click(function() {
-        editor.activate_object(this.attr("title")) 
-      });
-      return attr;
+
+    // The image requires slightly different handling in various situations.
+    if (attr.type == "image" && ("undefined" != typeof attr.href)) {
+      attr.src = attr.href;
+      if (typeof fromJSON != 'undefined') {
+        delete attr.href;
+      }
     }
-    else {
-      paper.add([attr]);
+
+    objectsArray[key] = paper.add([attr]);
+    objectsArray[key].attr({title: key});
+
+    objectsArray[key].click(function() {
+      editor.activate_object(this.attr("title")) 
+    });
+
+    // Interpret the matrix and convert it to a transform string.
+    if (editor.isset(attr.matrix)) {
+      var mat = attr.matrix;
+      var matrix_temp = Raphael.matrix(mat.a, mat.b, mat.c, mat.d, mat.e, mat.f);
+
+      var transform_string = matrix_temp.toTransformString();
+      if (editor.isset(objectsArray[key][0])) {
+        objectsArray[key][0].transform(transform_string);
+      }
     }
-    if (typeof callback != 'undefined') {
-      callback(key);
-    }
+    return attr;
   },
   drawFromJSON: function (key, jsonstr, nosave){
     var info = key.split("_");
 
     var objTemp = jsonstr;
-    editor.drawObject(info[0], key, objTemp, nosave);
+    editor.drawObject(info[0], key, objTemp, true);
 
     if (typeof nosave == 'undefined') { 
       i++;
@@ -498,31 +511,126 @@
 //    bg.hide();
   },
   saveLocal: function (callback){
-    // Undo option
-    /*
-    if(typeof localStorage !=="undefined") {
-      var lastIndex = false;
-      for (lastIndex in objects_array);
-
-      var attr = elements[lastIndex];
-      attr.id = lastIndex;
-      localStorage.undo = JSON.stringify(attr);
-
-    }
-    */
     contents = {};
-    $("#draw-diagram svg a").each(function(){
-      var tempAttr = {};
-      $.each($(this).children()[0].attributes, function(index, attr) {
-        tempAttr[attr.nodeName] = attr.value;
-      });
-      tempAttr.type = $(this).children()[0].tagName;
-      contents[$(this).attr("title")] = tempAttr;
-    });
-    if (editor.isset(callback)) {
-      callback(contents);
+    var svgdata = [];
+    for(var node = paper.bottom; node != null; node = node.next) {
+    if (node && node.type && node.attrs.title != "bbox") {
+        switch(node.type) {
+          case "image":
+            var object = {
+              type: node.type,
+              width: node.attrs['width'],
+              height: node.attrs['height'],
+              x: node.attrs['x'],
+              y: node.attrs['y'],
+              src: node.attrs['src'],
+              matrix: node.matrix ? node.matrix : null
+            }
+            break;
+          case "ellipse":
+            var object = {
+              type: node.type,
+              rx: node.attrs['rx'],
+              ry: node.attrs['ry'],
+              cx: node.attrs['cx'],
+              cy: node.attrs['cy'],
+              stroke: node.attrs['stroke'] === 0 ? 'none': node.attrs['stroke'],
+              'stroke-width': node.attrs['stroke-width'],
+              fill: node.attrs['fill'],
+              matrix: node.matrix ? node.matrix : null
+            }
+            break;
+          case "rect":
+            var object = {
+              type: node.type,
+              x: node.attrs['x'],
+              y: node.attrs['y'],
+              width: node.attrs['width'],
+              height: node.attrs['height'],
+              stroke: node.attrs['stroke'] === 0 ? 'none': node.attrs['stroke'],
+              'stroke-width': node.attrs['stroke-width'],
+              fill: node.attrs['fill'],
+              matrix: node.matrix ? node.matrix : null
+            }
+            break;
+          case "text":
+            var object = {
+              type: node.type,
+              font: node.attrs['font'],
+              'font-family': node.attrs['font-family'],
+              'font-size': node.attrs['font-size'],
+              stroke: node.attrs['stroke'] === 0 ? 'none': node.attrs['stroke'],
+              fill: node.attrs['fill'] === 0 ? 'none' : node.attrs['fill'],
+              'stroke-width': node.attrs['stroke-width'],
+              x: node.attrs['x'],
+              y: node.attrs['y'],
+              text: node.attrs['text'],
+              'text-anchor': node.attrs['text-anchor'],
+              matrix: node.matrix ? node.matrix : null
+            }
+            break;
+
+          case "path":
+            var path = "";
+
+            if(node.attrs['path'].constructor != Array){
+              path += node.attrs['path'];
+            }
+            else{
+              $.each(node.attrs['path'], function(i, group) {
+                $.each(group,
+                  function(index, value) {
+                    if (index < 1) {
+                        path += value;
+                    } else {
+                      if (index == (group.length - 1)) {
+                        path += value;
+                      } else {
+                       path += value + ',';
+                      }
+                    }
+                  });
+              });
+            }
+
+            var object = {
+              type: node.type,
+              fill: node.attrs['fill'],
+              opacity: node.attrs['opacity'],
+              translation: node.attrs['translation'],
+              scale: node.attrs['scale'],
+              path: path,
+              stroke: node.attrs['stroke'] === 0 ? 'none': node.attrs['stroke'],
+              'stroke-width': node.attrs['stroke-width'],
+              matrix: node.matrix ? node.matrix : null
+            }
+        }
+
+        if (object) {
+          svgdata.push(object);
+        }
+      }
     }
-    $(".draw-input-wrapper textarea").val(JSON.stringify(contents)); //objects_array));
+    var saved_data = JSON.stringify(svgdata);
+
+    $(".draw-input-wrapper textarea").val(saved_data);
+
+    // Save the necessary SVG for a simpler display option..
+    if ($(".draw-diagram-input-svg").length > 0) {
+      $(".draw-input-wrapper").append('<div class="raphaelPaper-temp"></div>');
+      $(".raphaelPaper-temp").html($("#draw-diagram").html());
+      $(".raphaelPaper-temp [title='bbox']").remove();
+      $(".raphaelPaper-temp svg").attr("xlink:xmlns", "http://www.w3.org/1999/xlink");
+      $(".raphaelPaper-temp svg a > *").appendTo(".raphaelPaper-temp svg");
+      
+      $(".raphaelPaper-temp svg a").remove();
+      $(".raphaelPaper-temp svg image").each(function(){
+        $(this).attr("xlink:href", $(this).attr("href")); //.removeAttr("href");
+      });
+
+      $(".draw-diagram-input-svg").val($(".raphaelPaper-temp").html());
+      $(".raphaelPaper-temp").remove();
+    }
   },
   isset: function (variable) {
       return (typeof variable != "undefined");
@@ -689,15 +797,14 @@
 
     // Toggle source view.
     $(".draw-view-source").click(function(){
-      $(this).siblings(".draw-input-wrapper").toggle();
+      $(".draw-input-wrapper, .draw-input-wrapper-svg").toggle();
     });
     
     // Where it all happens. Initiating the paper.
     paper = Raphael(document.getElementById("draw-diagram"), settings.canvas_width, settings.canvas_height);
     var palette = {tools: []}, width = settings.canvas_width;
 
-    // Setting up the toolboxes. 
-    // First the images to be used.
+    // Setting up the toolboxes. First the images to be used.
     $.each(settings.image_palette, function(index, item) {
       $("#draw-image-palette").append('<div data-img_id="' + index + '" class="draw-clipart draw-tool-icon" id="draw-' + index + '" style="background-image: url(' + item.src + ');"></div>');
     });
@@ -732,6 +839,7 @@
         item.action(editor.currentObjectID);
       });
     });
+
     // Tools on existing objects.
     $("#draw-tools-palette").append('<div class="draw-tool-section draw-tools-general" data-attr="type"></div>');
     $.each(settings.general, function(index, item) {
@@ -781,6 +889,7 @@
         elements[editor.currentObjectID] = objectsArray[editor.currentObjectID][0].attr();
       }
     });
+
     /*************************************************
      * Set up the backgrounds and background selector.
      *************************************************/
@@ -814,10 +923,11 @@
     }
     else if (editor.isset(settings.background_image.src)) {
       bg = paper.image(settings.background_image.src, 0, 0, settings.background_image.width, settings.background_image.height);
+      bg.attr({title: "bg"})
     }
     else {
       paper.setStart();
-      paper.rect(0,0, settings.canvas_width, settings.canvas_height).attr({"fill": "#FFF", stroke: "#666"});
+      paper.rect(0,0, settings.canvas_width, settings.canvas_height).attr({"fill": "#FFF", stroke: "#666", title: "bg"});
       bg = paper.setFinish();
     }
     bg.click(function(){
@@ -849,9 +959,10 @@
       saved_drawing = {};
     }
     if (typeof saved_drawing != "undefined") {
-      for(var element_title in saved_drawing) {
-        editor.drawFromJSON(element_title, saved_drawing[element_title]);
-      }
+      $.each(saved_drawing, function(index, element) {
+        editor.drawFromJSON(element.type + "_" + i, element);
+        i++;
+      });
     }
 
     $("body").data("active", "");
